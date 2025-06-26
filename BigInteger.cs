@@ -1,30 +1,15 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace RSASecureX
+namespace BigIntegerProject
 {
-    /// <summary>
-    /// Represents an arbitrary-precision integer that can handle numbers with hundreds of digits.
-    /// Numbers are stored as a list of digits in reverse order (least significant digit first)
-    /// to make arithmetic operations easier to implement.
-    /// </summary>
     public class BigInteger
     {
-        private List<int> digits;  // Stores digits in reverse order (least significant digit first)
-        private bool isNegative;   // Flag indicating if the number is negative
+        private List<int> digits;
+        private bool isNegative;
 
-        /// <summary>
-        /// Creates a new BigInteger from a string representation of a number.
-        /// </summary>
-        /// <param name="number">String representation of the number (can include negative sign)</param>
-        /// <exception cref="ArgumentException">Thrown if input is null, empty, or contains invalid characters</exception>
-        /// <remarks>
-        /// Example: For input "-1234":
-        /// - isNegative = true
-        /// - digits = [4,3,2,1]
-        /// </remarks>
         public BigInteger(string number)
         {
             if (string.IsNullOrEmpty(number))
@@ -33,186 +18,154 @@ namespace RSASecureX
             isNegative = number[0] == '-';
             digits = new List<int>();
 
-            // Process digits from right to left to store them in reverse order
-            for (int i = number.Length - 1; i >= (isNegative ? 1 : 0); i--)
+            int startIndex = isNegative ? 1 : 0;
+            for (int i = startIndex; i < number.Length; i++)
             {
                 if (!char.IsDigit(number[i]))
                     throw new ArgumentException("Invalid number format");
                 digits.Add(number[i] - '0');
             }
+            RemoveLeadingZeros();
         }
-
-        /// <summary>
-        /// Creates a new BigInteger from a list of digits and a sign flag.
-        /// </summary>
-        /// <param name="digits">List of digits in reverse order (least significant first)</param>
-        /// <param name="isNegative">Flag indicating if the number is negative</param>
         public BigInteger(List<int> digits, bool isNegative = false)
         {
             this.digits = new List<int>(digits);
             this.isNegative = isNegative;
+            RemoveLeadingZeros();
         }
-
-        /// <summary>
-        /// Adds two BigInteger numbers.
-        /// </summary>
-        /// <param name="a">First number</param>
-        /// <param name="b">Second number</param>
-        /// <returns>Sum of the two numbers</returns>
-        /// <remarks>
-        /// If numbers have same sign, adds their magnitudes and keeps the sign.
-        /// If numbers have different signs, converts to subtraction.
-        /// Example: (-5) + 3 = -(5 - 3) = -2
-        /// </remarks>
+        private void RemoveLeadingZeros()
+        {
+            while (digits.Count > 1 && digits[0] == 0)
+                digits.RemoveAt(0);
+        }
         public static BigInteger Add(BigInteger a, BigInteger b)
         {
             if (a.isNegative == b.isNegative)
             {
-                var result = AddDigits(a.digits, b.digits);
-                return new BigInteger(result, a.isNegative);
+                int n = Math.Max(a.digits.Count, b.digits.Count);
+
+                a.digits.InsertRange(0, Enumerable.Repeat(0, n - a.digits.Count));  // bet7ot esfar 3and el rakam elli el digits beta3to a2al
+                b.digits.InsertRange(0, Enumerable.Repeat(0, n - b.digits.Count));  // 3shan yeb2o nafs 3adad el digits
+
+                List<int> resultDigits = new List<int>(Enumerable.Repeat(0, n));  // ba3mel list b n esfar
+                int carry = 0;
+
+                for (int i = n - 1; i >= 0; i--)
+                {
+                    int sum = a.digits[i] + b.digits[i] + carry;
+                    resultDigits[i] = sum % 10;  // law el rakam akbar men 10 betraga3 el unit  
+                    carry = sum / 10; // w tesib el 1 fel carry
+                }
+
+                if (carry > 0)
+                    resultDigits.Insert(0, carry); // 3shan law fih carry fel a5er tezawedo 
+
+                return new BigInteger(resultDigits, a.isNegative);
             }
             else
             {
                 if (a.isNegative)
                 {
-                    a.isNegative = false;
-                    return Subtract(b, a);
+                    var result = Subtract(b, a);
+                    return result;
                 }
                 else
                 {
-                    b.isNegative = false;
-                    return Subtract(a, b);
+                    var result = Subtract(a, b);
+                    return result;
                 }
             }
         }
-
-        /// <summary>
-        /// Subtracts one BigInteger from another.
-        /// </summary>
-        /// <param name="a">First number</param>
-        /// <param name="b">Second number</param>
-        /// <returns>Difference between the two numbers</returns>
-        /// <remarks>
-        /// If numbers have different signs, converts to addition.
-        /// If numbers have same sign, compares magnitudes and subtracts accordingly.
-        /// Example: 5 - (-3) = 5 + 3 = 8
-        /// </remarks>
         public static BigInteger Subtract(BigInteger a, BigInteger b)
         {
             if (a.isNegative != b.isNegative)
             {
-                b.isNegative = !b.isNegative;
-                return Add(a, b);
+                BigInteger bInverse = new BigInteger(b.digits, !b.isNegative);
+                return Add(a, bInverse);
             }
 
-            bool resultIsNegative = false;
-            List<int> result;
+            int compareResult = CompareMagnitude(a.digits, b.digits); // law absolute(a) as8ar men absolute(b)
+            bool resultIsNegative = (compareResult < 0) != a.isNegative; // haye3kes el sign
 
-            if (CompareMagnitude(a.digits, b.digits) >= 0)
+            if (compareResult < 0) // swap a and b if b akbar men a
             {
-                result = SubtractDigits(a.digits, b.digits);
-                resultIsNegative = a.isNegative;
+                BigInteger temp = a;
+                a = b;
+                b = temp;
+            }
+
+            int n = Math.Max(a.digits.Count, b.digits.Count);
+
+            a.digits.InsertRange(0, Enumerable.Repeat(0, n - a.digits.Count)); // beyzawed esfar fel digits el a2al
+            b.digits.InsertRange(0, Enumerable.Repeat(0, n - b.digits.Count)); // 3shan yeb2o el 2 nafs 3adad el digits
+
+            List<int> resultDigits = new List<int>(Enumerable.Repeat(0, n)); // initialize list b esfar 3shan a subtract 3aleha
+            int borrow = 0;
+
+            for (int i = n - 1; i >= 0; i--)
+            {
+                int diff = a.digits[i] - b.digits[i] - borrow; 
+                if (diff < 0)
+                {
+                    diff += 10; 
+                    borrow = 1;
+                }
+                else
+                {
+                    borrow = 0;
+                }
+                resultDigits[i] = diff;
+            }
+
+            while (resultDigits.Count > 1 && resultDigits[0] == 0)
+                resultDigits.RemoveAt(0);
+
+            return new BigInteger(resultDigits, resultIsNegative);
+        }
+        public static BigInteger Multiply(BigInteger a, BigInteger b)
+        {
+            var resultDigits = Karatsuba(a.digits, b.digits);
+            bool resultIsNegative = a.isNegative != b.isNegative && !IsZero(resultDigits); // hatetla3 negative law sign a 3aks b w mafish wa7da fihom b zero
+            return new BigInteger(resultDigits, resultIsNegative);
+        }
+        private static bool IsZero(List<int> digits)
+        {
+            return digits.Count == 1 && digits[0] == 0;
+        }
+        public static (BigInteger quotient, BigInteger remainder) Divide(BigInteger a, BigInteger b)
+        {
+            if (CompareMagnitude(a.digits, b.digits) < 0)
+                return (new BigInteger(new List<int> { 0 }), a);
+
+            var two = new BigInteger("2");
+            var (q, r) = Divide(a, Multiply(b, two));
+
+            q = Multiply(q, two);
+
+            if (CompareMagnitude(r.digits, b.digits) < 0)
+            {
+                return (q, r);
             }
             else
             {
-                result = SubtractDigits(b.digits, a.digits);
-                resultIsNegative = !a.isNegative;
+                return (Add(q, new BigInteger("1")), Subtract(r, b));
             }
-
-            return new BigInteger(result, resultIsNegative);
         }
-
-        /// <summary>
-        /// Multiplies two BigInteger numbers.
-        /// </summary>
-        /// <param name="a">First number</param>
-        /// <param name="b">Second number</param>
-        /// <returns>Product of the two numbers</returns>
-        /// <remarks>
-        /// Uses standard multiplication algorithm, digit by digit.
-        /// Result is negative if operands have different signs.
-        /// Example: (-5) * 3 = -(5 * 3) = -15
-        /// </remarks>
-        public static BigInteger Multiply(BigInteger a, BigInteger b)
+        public static BigInteger Modulus(BigInteger a, BigInteger b)
         {
-            var result = MultiplyDigits(a.digits, b.digits);
-            return new BigInteger(result, a.isNegative != b.isNegative);
+            var (_, remainder) = Divide(a, b);
+            return remainder;
         }
-
-        /// <summary>
-        /// Divides one BigInteger by another and returns both quotient and remainder.
-        /// </summary>
-        /// <param name="a">Dividend</param>
-        /// <param name="b">Divisor</param>
-        /// <returns>Tuple containing quotient and remainder</returns>
-        /// <exception cref="DivideByZeroException">Thrown if divisor is zero</exception>
-        /// <remarks>
-        /// Uses repeated subtraction algorithm.
-        /// Quotient is negative if operands have different signs.
-        /// Remainder has same sign as dividend.
-        /// </remarks>
-        public static (BigInteger quotient, BigInteger remainder) Divide(BigInteger a, BigInteger b)
-        {
-            if (b.digits.All(d => d == 0))
-                throw new DivideByZeroException();
-
-            var (quotient, remainder) = DivideDigits(a.digits, b.digits);
-            return (new BigInteger(quotient, a.isNegative != b.isNegative),
-                    new BigInteger(remainder, a.isNegative));
-        }
-
-        /// <summary>
-        /// Checks if the number is even.
-        /// </summary>
-        /// <returns>True if the number is even, false otherwise</returns>
-        /// <remarks>
-        /// Checks the least significant digit (digits[0]).
-        /// Example: 1234 is even because 4 % 2 = 0
-        /// </remarks>
         public bool IsEven()
         {
-            return digits[0] % 2 == 0;
+            return digits.Count > 0 && digits[digits.Count - 1] % 2 == 0;
         }
-
-        /// <summary>
-        /// Converts the BigInteger to its string representation.
-        /// </summary>
-        /// <returns>String representation of the number</returns>
-        /// <remarks>
-        /// Example: For number stored as [4,3,2,1] with isNegative = true:
-        /// Returns "-1234"
-        /// </remarks>
         public override string ToString()
         {
-            if (digits.Count == 0) return "0";
-            var result = string.Join("", digits.AsEnumerable().Reverse());
+            if (digits.Count == 0 || (digits.Count == 1 && digits[0] == 0)) return "0";
+            var result = string.Join("", digits);
             return isNegative ? "-" + result : result;
         }
-
-        /// <summary>
-        /// Converts a string to a BigInteger.
-        /// </summary>
-        /// <param name="text">Input string to convert</param>
-        /// <returns>BigInteger representation of the string</returns>
-        /// <remarks>
-        /// Converts string to UTF-8 bytes, then to hexadecimal string.
-        /// Example: "Hello" → [72,101,108,108,111] → "48656C6C6F" → BigInteger
-        /// </remarks>
-        public static BigInteger FromString(string text)
-        {
-            byte[] bytes = Encoding.UTF8.GetBytes(text);
-            string number = BitConverter.ToString(bytes).Replace("-", "");
-            return new BigInteger(number);
-        }
-
-        /// <summary>
-        /// Converts the BigInteger back to its original string.
-        /// </summary>
-        /// <returns>Original string that was converted to this BigInteger</returns>
-        /// <remarks>
-        /// Converts the number to hex string, then to bytes, then to UTF-8 string.
-        /// Example: BigInteger("48656C6C6F") → "Hello"
-        /// </remarks>
         public string ToOriginalString()
         {
             if (digits.Count == 0) return "";
@@ -224,19 +177,52 @@ namespace RSASecureX
             }
             return Encoding.UTF8.GetString(bytes);
         }
+        private static List<int> Karatsuba(List<int> a, List<int> b)
+        {
+            a = Reverse(a); 
+            b = Reverse(b);
 
-        /// <summary>
-        /// Adds two lists of digits representing numbers in reverse order.
-        /// </summary>
-        /// <param name="a">First number's digits</param>
-        /// <param name="b">Second number's digits</param>
-        /// <returns>Sum of the two numbers as a list of digits</returns>
-        /// <remarks>
-        /// Example: Adding 123 + 456
-        /// a = [3,2,1], b = [6,5,4]
-        /// Result = [9,7,5] (representing 579)
-        /// </remarks>
-        private static List<int> AddDigits(List<int> a, List<int> b)
+            List<int> result = KaratsubaImplementation(a, b);
+            return Reverse(result);
+        }
+        private static List<int> KaratsubaImplementation(List<int> a, List<int> b)
+        {
+            Trim(a); // benshil el zeros elli na7yet el unit (yemin)
+            Trim(b); // 3shan lama tet2eleb tani maraga3sh el esfar
+
+            if (a.Count == 0 || b.Count == 0) // base case
+                return new List<int> { 0 };
+            if (a.Count == 1 && b.Count == 1) // base case
+                return SimpleMultiply(a[0], b[0]);
+
+            if (a.Count <= 32 && b.Count <= 32)
+            {
+                return SimpleMultiplyLists(a, b); // law 3adad el digits a2al men 32 ba3mel el multiplication el 3adeya
+            }
+
+            int m = Math.Max(a.Count, b.Count) / 2; // 3shan a2sem el rakam nosen ad ba3d
+
+            // get range 3shan a2asem el arkam
+            var aLow = a.GetRange(0, Math.Min(m, a.Count)); 
+            var aHigh = a.GetRange(Math.Min(m, a.Count), Math.Max(0, a.Count - m));
+            var bLow = b.GetRange(0, Math.Min(m, b.Count));
+            var bHigh = b.GetRange(Math.Min(m, b.Count), Math.Max(0, b.Count - m));
+
+            // (aLow + aHigh) * (bLow + bHigh) = aLow.bLow (z0) + aLow.bHigh + bLow.aHigh +aHigh.bHigh (z2)
+            // z1 = (aLow + aHigh) * (bLow + bHigh) - z0 - z2
+            var z0 = KaratsubaImplementation(aLow, bLow);
+            var z2 = KaratsubaImplementation(aHigh, bHigh);
+            var aSum = AddDigitsInternal(aLow, aHigh);
+            var bSum = AddDigitsInternal(bLow, bHigh);
+            var z1 = SubtractDigitsInternal(SubtractDigitsInternal
+                (KaratsubaImplementation(aSum, bSum), z2), z0);
+
+            var result = AddDigitsInternal(ShiftLeft(z2, 2 * m), 
+                AddDigitsInternal(ShiftLeft(z1, m), z0)); 
+            Trim(result);
+            return result;
+        }
+        private static List<int> AddDigitsInternal(List<int> a, List<int> b)
         {
             var result = new List<int>();
             int carry = 0;
@@ -254,19 +240,7 @@ namespace RSASecureX
 
             return result;
         }
-
-        /// <summary>
-        /// Subtracts one list of digits from another.
-        /// </summary>
-        /// <param name="a">First number's digits</param>
-        /// <param name="b">Second number's digits</param>
-        /// <returns>Difference of the two numbers as a list of digits</returns>
-        /// <remarks>
-        /// Example: Subtracting 456 - 123
-        /// a = [6,5,4], b = [3,2,1]
-        /// Result = [3,3,3] (representing 333)
-        /// </remarks>
-        private static List<int> SubtractDigits(List<int> a, List<int> b)
+        private static List<int> SubtractDigitsInternal(List<int> a, List<int> b)
         {
             var result = new List<int>();
             int borrow = 0;
@@ -289,108 +263,83 @@ namespace RSASecureX
                 result.Add(diff);
             }
 
-            // Remove leading zeros
             while (result.Count > 1 && result[result.Count - 1] == 0)
                 result.RemoveAt(result.Count - 1);
 
             return result;
         }
-
-        /// <summary>
-        /// Multiplies two lists of digits using standard multiplication algorithm.
-        /// </summary>
-        /// <param name="a">First number's digits</param>
-        /// <param name="b">Second number's digits</param>
-        /// <returns>Product of the two numbers as a list of digits</returns>
-        /// <remarks>
-        /// Example: Multiplying 12 * 34
-        /// a = [2,1], b = [4,3]
-        /// Result = [8,0,4,0] (representing 408)
-        /// </remarks>
-        private static List<int> MultiplyDigits(List<int> a, List<int> b)
+        private static List<int> SimpleMultiplyLists(List<int> a, List<int> b)
         {
-            var result = new List<int>(new int[a.Count + b.Count]);
+            int[] resultArray = new int[a.Count + b.Count];
 
             for (int i = 0; i < a.Count; i++)
             {
+                if (a[i] == 0) continue;
+
                 int carry = 0;
-                for (int j = 0; j < b.Count || carry > 0; j++)
+                int j = 0;
+
+                for (; j + 3 < b.Count; j += 4)
                 {
-                    int product = result[i + j] + a[i] * (j < b.Count ? b[j] : 0) + carry;
-                    result[i + j] = product % 10;
-                    carry = product / 10;
+                    int sum1 = resultArray[i + j] + a[i] * b[j] + carry;
+                    resultArray[i + j] = sum1 % 10;
+                    carry = sum1 / 10;
+
+                    int sum2 = resultArray[i + j + 1] + a[i] * b[j + 1] + carry;
+                    resultArray[i + j + 1] = sum2 % 10;
+                    carry = sum2 / 10;
+
+                    int sum3 = resultArray[i + j + 2] + a[i] * b[j + 2] + carry;
+                    resultArray[i + j + 2] = sum3 % 10;
+                    carry = sum3 / 10;
+
+                    int sum4 = resultArray[i + j + 3] + a[i] * b[j + 3] + carry;
+                    resultArray[i + j + 3] = sum4 % 10;
+                    carry = sum4 / 10;
                 }
+
+                for (; j < b.Count; j++)
+                {
+                    int sum = resultArray[i + j] + a[i] * b[j] + carry;
+                    resultArray[i + j] = sum % 10;
+                    carry = sum / 10;
+                }
+
+                if (carry > 0)
+                    resultArray[i + j] = carry;
             }
 
-            // Remove leading zeros
-            while (result.Count > 1 && result[result.Count - 1] == 0)
-                result.RemoveAt(result.Count - 1);
+            var result = new List<int>(resultArray);
+            Trim(result);
+            return result;
+        }
+        private static List<int> SimpleMultiply(int a, int b)
+        {
+            int product = a * b;
+            var res = new List<int> { product % 10 };
+            if (product >= 10) res.Add(product / 10);
+            return res;
+        }
 
+        private static List<int> ShiftLeft(List<int> digits, int n)
+        {
+            var result = new List<int>(new int[n]);
+            result.AddRange(digits);
             return result;
         }
 
-        /// <summary>
-        /// Divides one list of digits by another using repeated subtraction.
-        /// </summary>
-        /// <param name="a">Dividend's digits</param>
-        /// <param name="b">Divisor's digits</param>
-        /// <returns>Tuple containing quotient and remainder as lists of digits</returns>
-        /// <remarks>
-        /// Example: Dividing 100 by 3
-        /// a = [0,0,1], b = [3]
-        /// Result: quotient = [3,3], remainder = [1] (representing 33 with remainder 1)
-        /// </remarks>
-        private static (List<int> quotient, List<int> remainder) DivideDigits(List<int> a, List<int> b)
+        private static void Trim(List<int> digits)
         {
-            if (CompareMagnitude(a, b) < 0)
-                return (new List<int> { 0 }, new List<int>(a));
-
-            var quotient = new List<int>();
-            var remainder = new List<int>(a);
-
-            while (CompareMagnitude(remainder, b) >= 0)
-            {
-                var (q, r) = DivideStep(remainder, b);
-                quotient = AddDigits(quotient, q);
-                remainder = r;
-            }
-
-            return (quotient, remainder);
+            while (digits.Count > 1 && digits[digits.Count - 1] == 0)
+                digits.RemoveAt(digits.Count - 1);
         }
 
-        /// <summary>
-        /// Performs a single step of division by subtracting divisor from remainder.
-        /// </summary>
-        /// <param name="a">Current remainder</param>
-        /// <param name="b">Divisor</param>
-        /// <returns>Tuple containing quotient (1) and new remainder</returns>
-        /// <remarks>
-        /// This is a helper method for DivideDigits that performs one subtraction step.
-        /// </remarks>
-        private static (List<int> quotient, List<int> remainder) DivideStep(List<int> a, List<int> b)
-        {
-            var quotient = new List<int> { 1 };
-            var remainder = SubtractDigits(a, b);
-            return (quotient, remainder);
-        }
-
-        /// <summary>
-        /// Compares the magnitudes of two lists of digits.
-        /// </summary>
-        /// <param name="a">First number's digits</param>
-        /// <param name="b">Second number's digits</param>
-        /// <returns>-1 if a < b, 0 if a == b, 1 if a > b</returns>
-        /// <remarks>
-        /// First compares lengths, then compares digits from most significant to least.
-        /// Example: Comparing [3,2,1] and [4,3,2,1]
-        /// Returns -1 because first number is shorter
-        /// </remarks>
         private static int CompareMagnitude(List<int> a, List<int> b)
         {
             if (a.Count != b.Count)
                 return a.Count.CompareTo(b.Count);
 
-            for (int i = a.Count - 1; i >= 0; i--)
+            for (int i = 0; i < a.Count; i++)
             {
                 if (a[i] != b[i])
                     return a[i].CompareTo(b[i]);
@@ -398,5 +347,12 @@ namespace RSASecureX
 
             return 0;
         }
+        private static List<int> Reverse(List<int> digits)
+        {
+            var reversed = new List<int>(digits);
+            reversed.Reverse();
+            return reversed;
+        }
+        
     }
-} 
+}
